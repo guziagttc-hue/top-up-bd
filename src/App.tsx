@@ -80,13 +80,20 @@ export default function App() {
 
     const processServices = (data: any[]) => {
       const grouped: { [key: string]: Category } = {};
-      data.forEach((svc: ApiService) => {
+      
+      // Filter out invalid items
+      const validServices = data.filter(svc => svc && typeof svc === 'object' && (svc.service || svc.id));
+
+      validServices.forEach((svc: ApiService) => {
         const categoryName = svc.category || 'Other Services';
         if (!grouped[categoryName]) {
-          const isFB = categoryName.toLowerCase().includes('facebook');
-          const isTT = categoryName.toLowerCase().includes('tiktok');
-          const isIG = categoryName.toLowerCase().includes('instagram');
-          const isYT = categoryName.toLowerCase().includes('youtube');
+          const catLower = categoryName.toLowerCase();
+          const isFB = catLower.includes('facebook') || catLower.includes('fb');
+          const isTT = catLower.includes('tiktok') || catLower.includes('tik tok');
+          const isIG = catLower.includes('instagram') || catLower.includes('ig');
+          const isYT = catLower.includes('youtube') || catLower.includes('yt');
+          const isTW = catLower.includes('twitter') || catLower.includes('x');
+          const isTG = catLower.includes('telegram') || catLower.includes('tg');
           
           grouped[categoryName] = {
             id: categoryName,
@@ -94,20 +101,23 @@ export default function App() {
             icon: isFB ? <Facebook className="w-4 h-4" /> : 
                   isTT ? <TrendingUp className="w-4 h-4" /> : 
                   isIG ? <Zap className="w-4 h-4" /> :
-                  isYT ? <Zap className="w-4 h-4" /> : <Zap className="w-4 h-4" />,
+                  isYT ? <Zap className="w-4 h-4" /> : 
+                  isTW ? <Zap className="w-4 h-4" /> :
+                  isTG ? <Zap className="w-4 h-4" /> : <Zap className="w-4 h-4" />,
             services: []
           };
         }
         
         const rate = parseFloat(svc.rate?.toString() || '0');
+        // Convert USD to BDT and add a small margin (e.g., 5 BDT)
         const rateInBDT = (rate * USD_TO_BDT) + 5;
         
         grouped[categoryName].services.push({
-          id: svc.service?.toString() || Math.random().toString(),
+          id: svc.service?.toString() || svc.id?.toString() || Math.random().toString(),
           name: svc.name || 'Unknown Service',
           ratePer1000: rateInBDT,
-          min: parseInt(svc.min?.toString() || '0'),
-          max: parseInt(svc.max?.toString() || '0'),
+          min: parseInt(svc.min?.toString() || '10'),
+          max: parseInt(svc.max?.toString() || '10000'),
           description: [
             `Type: ${svc.type || 'Default'}`,
             `Refill: ${svc.refill ? 'Yes' : 'No'}`,
@@ -118,19 +128,16 @@ export default function App() {
       });
 
       const catList = Object.values(grouped);
-      setCategories(catList);
       if (catList.length > 0) {
+        setCategories(catList);
         setSelectedCategory(catList[0]);
         setSelectedService(catList[0].services[0]);
       }
     };
 
-    // Initialize with fallback immediately
-    processServices(fallbackServices);
-    setIsServicesLoading(false);
-
-    // Try to fetch real services in background without blocking
+    // Try to fetch real services
     const fetchRealServices = async () => {
+      setIsServicesLoading(true);
       try {
         const response = await fetch('/api/proxy', {
           method: 'POST',
@@ -140,7 +147,7 @@ export default function App() {
         
         if (!response.ok) {
           const errText = await response.text();
-          throw new Error(`Server Error (${response.status}): ${errText.substring(0, 100)}`);
+          throw new Error(`Server Error (${response.status})`);
         }
         
         const data = await response.json();
@@ -148,18 +155,18 @@ export default function App() {
         if (data.error) {
           console.error("MotherPanel API Error:", data.error);
           setServicesError(`API Error: ${data.error}`);
+          // Fallback if real fails
+          processServices(fallbackServices);
           return;
         }
 
-        // Handle different possible response formats from SMM panels
         let servicesArray = [];
         if (Array.isArray(data)) {
           servicesArray = data;
         } else if (data && typeof data === 'object' && Array.isArray(data.services)) {
           servicesArray = data.services;
         } else if (data && typeof data === 'object') {
-          // Some panels return an object where keys are service IDs
-          servicesArray = Object.values(data).filter(item => item && typeof item === 'object' && 'service' in item);
+          servicesArray = Object.values(data).filter(item => item && typeof item === 'object' && ('service' in item || 'id' in item));
         }
 
         if (servicesArray.length > 0) {
@@ -169,10 +176,14 @@ export default function App() {
           console.log(`Loaded ${servicesArray.length} real services from MotherPanel`);
         } else {
           setServicesError("No services found from provider.");
+          processServices(fallbackServices);
         }
       } catch (e: any) {
         console.error("Failed to fetch real services:", e);
         setServicesError(e.message || "Failed to connect to provider.");
+        processServices(fallbackServices);
+      } finally {
+        setIsServicesLoading(false);
       }
     };
 

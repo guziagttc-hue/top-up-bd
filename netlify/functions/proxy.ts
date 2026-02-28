@@ -38,9 +38,16 @@ export const handler: Handler = async (event, context) => {
       };
     }
     
+    // Log request for debugging in Netlify console
+    console.log(`Proxying action: ${action} to MotherPanel`);
+    
     // Hardcoded fallback to ensure it ALWAYS works on Netlify even if env vars fail
     const API_KEY = process.env.MOTHER_PANEL_API_KEY || "2c67ea4f797ab16122ab7344c5a0f5dd";
     const API_URL = "https://motherpanel.com/api/v2";
+
+    if (API_KEY === "2c67ea4f797ab16122ab7344c5a0f5dd") {
+      console.warn("Using fallback API key. Please set MOTHER_PANEL_API_KEY in Netlify environment variables.");
+    }
 
     const formBody = new URLSearchParams();
     formBody.append("key", API_KEY);

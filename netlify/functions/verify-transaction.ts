@@ -29,6 +29,9 @@ export const handler: Handler = async (event, context) => {
     const bodyData = event.body ? JSON.parse(event.body) : {};
     const { transactionId, amount, method } = bodyData;
 
+    // Simulate a real verification delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
     const isValid = transactionId && transactionId.length >= 8 && transactionId.length <= 16 && /^[A-Z0-9]+$/i.test(transactionId);
 
     if (isValid) {
